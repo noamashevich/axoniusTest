@@ -1,21 +1,21 @@
-import time
-from utils.date_utils import to_airbnb_date_label, get_date_from_today
+import difflib
+
 from pages.base_page import BasePage
+from pages.components.guests_picker import GuestPickerComponent
+from pages.components.date_picker import DatePickerComponent
 from playwright.sync_api import Page
+import re
+import urllib.parse
+
 
 class AirbnbPage(BasePage):
     def __init__(self, page: Page):
         super().__init__(page)
-        self.location_input = page.locator('input[placeholder*="Search"]')
+        self.location_input = page.locator('[data-testid="structured-search-input-field-query"]')
         self.suggestion_by_text = lambda city: page.locator(f'div[role="option"] >> text="{city}"')
-
-        self.check_in_field = page.get_by_role("button", name="Check in Add dates")
-        self.check_out_field = page.get_by_role("button", name="Check out Add dates")
-
-        self.date_cell = lambda date: page.locator(f'button[aria-label*=\"{date}\"]')
-        self.search_button = page.locator('button[aria-label="Search"]')
-        self.next_month_button = page.locator('button[aria-label="Move forward to switch to the next month."]')
-        self.calendar_root = page.locator('[data-testid="structured-search-input-field-dates-panel"]')
+        self.search_button = page.locator('[data-testid="structured-search-input-search-button"]')
+        self.date_picker = DatePickerComponent(page)
+        self.guests_picker = GuestPickerComponent(page)
 
     def go_to_homepage(self):
         self.navigate("https://www.airbnb.com/")
@@ -26,47 +26,38 @@ class AirbnbPage(BasePage):
         self.fill(self.location_input, city)
         self.page.locator('div[role="option"]').first.click()
 
-    def go_to_month_of_date(self, date_label: str):
-        for i in range(12):
-            if self.date_cell(date_label).is_visible():
-                print(f"✔ Found {date_label} in month {i+1}")
-                break
-            print(f"➡ Moving to next month (attempt {i+1})")
-            self.click(self.next_month_button)
-            self.page.wait_for_timeout(1000)
-
     def select_dates(self, check_in: str, check_out: str):
-        check_in_label = to_airbnb_date_label(check_in)
-        check_out_label = to_airbnb_date_label(check_out)
+        self.date_picker.select_range(check_in, check_out)
 
-        self.wait_for_element(self.check_in_field)
-        self.click(self.check_in_field)
-
-        self.page.wait_for_timeout(1000)
-        if self.calendar_root.count() == 0:
-            print("📌 Calendar auto-closed. Reopening it...")
-            self.click(self.check_in_field)
-            self.page.wait_for_timeout(1000)
-
-        assert self.calendar_root.count() > 0, "❌ Calendar is not open after clicking Check in"
-        print("✅ Calendar is open.")
-
-        # 🔁 נמתין שהתאריכים באמת יופיעו ב-DOM
-        for _ in range(5):
-            count = self.page.locator("td[aria-label]").count()
-            print("🔁 Date cell count:", count)
-            if count > 0:
-                break
-            self.page.wait_for_timeout(500)
-
-        self.go_to_month_of_date(check_in_label)
-        self.wait_for_element(self.date_cell(check_in_label))
-        self.click(self.date_cell(check_in_label))
-
-        self.go_to_month_of_date(check_out_label)
-        self.wait_for_element(self.date_cell(check_out_label))
-        self.click(self.date_cell(check_out_label))
+    def select_guests(self, **kwargs):
+        self.guests_picker.set_guests(**kwargs)
 
     def search(self):
         self.click(self.search_button)
 
+    @staticmethod
+    def _slug(txt: str) -> str:
+        return re.sub(r"[^a-z0-9-]+", "", txt.lower().replace(" ", "-"))
+
+    def validate_url_contains(self, expected: dict):
+        url = urllib.parse.unquote(self.page.url.lower())
+
+        if "location" in expected:
+            exp = self._slug(expected["location"])
+            m = re.search(r"/s/([\w~\-]+)/homes", url)
+            assert m, f"can't extract location from {url!r}"
+
+            seg = m.group(1)  # tel-aviv~yafo--israel
+            if exp not in seg:
+                # fuzzy fallback: match against each part split by ~ or --
+                parts = re.split(r"[~\-]{2}|~", seg)  # ['tel-aviv', 'yafo', 'israel']
+                assert any(
+                    difflib.SequenceMatcher(None, exp, p).ratio() >= 0.8
+                    for p in parts
+                ), f"location '{exp}' not found in URL segment '{seg}'"
+
+        for k, v in expected.items():
+            if k == "location":
+                continue
+            val = self._slug(str(v))
+            assert f"{k}={val}" in url, f"missing '{k}={val}' in URL: {url}"

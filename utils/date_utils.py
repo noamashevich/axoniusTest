@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 def to_airbnb_date_label(date_str: str) -> str:
     """
@@ -9,11 +9,13 @@ def to_airbnb_date_label(date_str: str) -> str:
     date_obj = datetime.strptime(date_str, "%Y-%m-%d")
     return date_obj.strftime("%d, %A, %B %Y")  # Airbnb format
 
-def get_date_from_today(days_from_today: int) -> str:
+def validate_date_logic(check_in: str, check_out: str):
     """
-    Returns a date string in format 'YYYY-MM-DD' that is X days from today.
-    :param days_from_today: how many days ahead (or negative for past)
-    :return: date string like '2025-04-22'
+    Validates that the check-out date is later than the check-in date.
+    :param check_in: Check-in date as string 'YYYY-MM-DD'
+    :param check_out: Check-out date as string 'YYYY-MM-DD'
+    :raises AssertionError if the logic is invalid
     """
-    target_date = datetime.today() + timedelta(days=days_from_today)
-    return target_date.strftime("%Y-%m-%d")
+    check_in_date = datetime.strptime(check_in, "%Y-%m-%d")
+    check_out_date = datetime.strptime(check_out, "%Y-%m-%d")
+    assert check_out_date > check_in_date, f"Check-out date ({check_out}) must be later than check-in date ({check_in})"
