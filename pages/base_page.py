@@ -2,6 +2,10 @@ from playwright.sync_api import Page, Locator
 
 class BasePage:
     def __init__(self, page: Page):
+        """
+        A generic base class for all pages - Handles common browser actions
+        :param page: Playwright Page object.
+        """
         self.page = page
 
     def to_locator(self, locator_or_str) -> Locator:
@@ -45,4 +49,9 @@ class BasePage:
             locator.wait_for(timeout=timeout, state=state)
 
     def navigate(self, url: str):
+        """
+        Navigates to the selected url
+        :param url: string
+        :return:
+        """
         self.page.goto(url)

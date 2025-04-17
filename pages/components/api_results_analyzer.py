@@ -1,8 +1,10 @@
+import base64
+
 import requests
 import json
 from playwright.sync_api import Page
 
-class AirbnbResultsAnalyzer:
+class ApiResultsAnalyzer:
     def __init__(self, page: Page):
         """
         Initializes the AirbnbResultsAnalyzer with a Playwright page instance.
@@ -52,25 +54,44 @@ class AirbnbResultsAnalyzer:
 
     def _extract(self, item):
         """
-        Extracts relevant fields (ID, name, description, price, rating, and URL suffix) from a listing item.
-        Args: item (dict): Raw listing dictionary from Airbnb API response.
-        Returns: dict: Simplified dictionary containing listing details.
+        Extracts relevant fields (room ID, name, description, price per night, total price, rating) from a listing item.
+
+        Args:
+            item (dict): Raw listing dictionary from Airbnb API response.
+
+        Returns:
+            dict: Simplified dictionary containing listing details.
         """
         listing = item.get("listing", item)
+
+        # Try to get room_id
+        room_id = listing.get("id")
+        if not room_id:
+            demand = listing.get("demandStayListing", item.get("demandStayListing", {}))
+            encoded_id = demand.get("id")
+            if encoded_id:
+                decoded_id = base64.b64decode(encoded_id).decode("utf-8")
+                if ":" in decoded_id:
+                    room_id = decoded_id.split(":")[-1]
+
         demand = item.get("demandStayListing", listing.get("demandStayListing", {}))
 
-        id_ = demand.get("id")
         name = listing.get("title") or item.get("title") or "Unnamed Listing"
         description = demand.get("description", {}).get("name", {}).get("localizedStringWithTranslationPreference", "")
-        price_str = item.get("structuredDisplayPrice", {}).get("primaryLine", {}).get("discountedPrice") or ""
+
+        structured_price = item.get("structuredDisplayPrice", {}).get("primaryLine", {})
+        price_per_night_str = structured_price.get("discountedPrice") or ""
+        total_price_str = item.get("structuredDisplayPrice", {}).get("secondaryLine", {}).get("price", "")
+
         rating_str = item.get("avgRatingLocalized") or item.get("avgRatingA11yLabel")
 
         return {
-            "id": id_,
+            "id": room_id,
             "name": name,
             "description": description,
-            "price": float(price_str.replace("₪", "").replace(",", "")) if price_str else None,
-            "rating": float(rating_str.split("(")[0]) if rating_str and "(" in rating_str else None
+            "price": float(total_price_str.replace("₪", "").replace(",", "").replace("total",
+                                                                                           "").strip()) if total_price_str else None,
+            "rating": float(rating_str.split("(")[0]) if rating_str and "(" in rating_str else None,
         }
 
     def get_cheapest_from_api(self):

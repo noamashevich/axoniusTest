@@ -1,5 +1,9 @@
 class GuestPickerComponent:
     def __init__(self, page):
+        """
+        Manages the selection of the number of guests
+        :param page: Playwright Page object.
+        """
         self.page = page
         self.guest_button = page.locator('[data-testid="structured-search-input-field-guests-button"]')
         self.controls = {
@@ -20,7 +24,7 @@ class GuestPickerComponent:
             if category == "is_service_dog":
                 continue
             if category == "pets" and is_service_dog:
-                print("🐶 Skipping pets selection due to service dog.")
+                print("Skipping pets selection due to service dog.")
                 continue
             if category in self.controls:
                 for _ in range(amount):
