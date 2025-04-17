@@ -10,6 +10,7 @@ class GuestPickerComponent:
         }
 
     def open(self):
+        self.guest_button.wait_for(state="visible", timeout=5000)
         self.guest_button.click()
         self.page.wait_for_timeout(500)
 

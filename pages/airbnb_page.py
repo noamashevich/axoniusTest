@@ -24,7 +24,17 @@ class AirbnbPage(BasePage):
     def enter_location(self, city: str):
         self.click(self.location_input)
         self.fill(self.location_input, city)
-        self.page.locator('div[role="option"]').first.click()
+
+        options = self.page.locator('div[role="option"]')
+        options.first.wait_for(state="visible", timeout=5000)
+
+        matched = options.filter(has_text=city)
+
+        try:
+            matched.first.wait_for(state="visible", timeout=2000)
+            matched.first.click()
+        except: # No exact match, clicking first option
+            options.first.click()
 
     def select_dates(self, check_in: str, check_out: str):
         self.date_picker.select_range(check_in, check_out)
