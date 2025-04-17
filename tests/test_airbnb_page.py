@@ -19,7 +19,7 @@ def log_listing(listing: dict, title: str):
 
 
 @pytest.mark.parametrize("location, check_in, check_out, guests", [
-    ("Haifa", "2025-04-17", "2025-04-20", {"adults": 2})
+    ("Tel Aviv", "2025-04-17", "2025-04-20", {"adults": 2})
 ])
 def test_airbnb_search_and_analyze(page, location, check_in, check_out, guests):
     # Arrange
